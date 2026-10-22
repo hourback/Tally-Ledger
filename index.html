@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b2420">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tally">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+<title>Tally Ledger</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow column, a sticky date bar on top and a tab bar fixed at the bottom, like a pocket ledger */
+:root{
+  --bg:#f3f5f2; --surface:#ffffff; --ink:#1b2420; --muted:#5f6b65; --line:#dde3de;
+  --pos:#1f7a5c; --pos-soft:#cfe9dd; --neg:#b8462f; --neg-soft:#f4d6cd; --accent:#2b4a8b; --empty:#e7ebe8;
+  --display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Segoe UI", Roboto, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121614; --surface:#1b201e; --ink:#e6ece8; --muted:#97a39d; --line:#2c3430;
+  --pos:#4cc497; --pos-soft:#1d3d31; --neg:#ec7a5e; --neg-soft:#45261e; --accent:#8fb0f0; --empty:#252c29; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121614; --surface:#1b201e; --ink:#e6ece8; --muted:#97a39d; --line:#2c3430;
+  --pos:#4cc497; --pos-soft:#1d3d31; --neg:#ec7a5e; --neg-soft:#45261e; --accent:#8fb0f0; --empty:#252c29; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--ink)}
+body{font:15px/1.45 var(--body);-webkit-tap-highlight-color:transparent}
+.wrap{max-width:640px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 calc(88px + env(safe-area-inset-bottom,0px))}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+h2{font-size:1.25rem}
+h3{font-size:1rem}
+.num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.label{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:14px 10px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid var(--line)}
+.brand{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.brand h1{font-size:1.5rem;letter-spacing:-.01em}
+.brand .tallymark{font-family:var(--mono);color:var(--muted);font-size:.8rem}
+.datebar{display:flex;align-items:center;gap:8px}
+.datebar button{border:1px solid var(--line);background:var(--surface);border-radius:10px;width:40px;height:40px;font-size:1.1rem}
+.datebar .d{flex:1;text-align:center;display:flex;flex-direction:column}
+.datebar .d strong{font-family:var(--display);font-size:1.1rem}
+.datebar input[type=date]{border:0;background:transparent;color:var(--muted);text-align:center;font-size:.8rem}
+
+.banner{margin-top:14px;padding:12px 14px;border:1px dashed var(--accent);border-radius:12px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.banner p{margin:0;min-width:0;flex:1 1 220px;font-size:.9rem}
+
+section.view{display:flex;flex-direction:column;gap:22px;padding-top:18px}
+.group{display:flex;flex-direction:column;gap:8px}
+.group-head{display:flex;justify-content:space-between;align-items:baseline}
+.rows{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .name{font-weight:500;min-width:0;overflow-wrap:anywhere}
+.strip{display:flex;gap:3px;margin-top:6px}
+.strip i{width:9px;height:9px;border-radius:2px;background:var(--empty)}
+.strip i.on.p{background:var(--pos)} .strip i.on.n{background:var(--neg)}
+.strip i.cur{outline:1.5px solid var(--muted);outline-offset:1px}
+.tog{min-width:92px;height:44px;border-radius:22px;border:1.5px solid var(--line);background:transparent;font-weight:600;font-size:.88rem;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s,border-color .15s}
+.tog.p.on{background:var(--pos);border-color:var(--pos);color:var(--surface)}
+.tog.n.on{background:var(--neg);border-color:var(--neg);color:var(--surface)}
+.tog.p:not(.on){color:var(--pos)} .tog.n:not(.on){color:var(--neg)}
+.empty{padding:16px;color:var(--muted);font-size:.9rem}
+.daysum{display:flex;gap:10px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:.82rem;font-weight:600}
+.chip.p{background:var(--pos-soft);color:var(--pos)} .chip.n{background:var(--neg-soft);color:var(--neg)} .chip.x{background:var(--empty);color:var(--muted)}
+
+form.add{display:flex;gap:8px;flex-wrap:wrap}
+form.add input[type=text]{flex:1 1 180px;min-width:0;height:44px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:transparent;padding:0 12px;height:42px;font-size:.88rem;font-weight:500;color:var(--muted)}
+.seg button[aria-pressed=true].p{background:var(--pos-soft);color:var(--pos)}
+.seg button[aria-pressed=true].n{background:var(--neg-soft);color:var(--neg)}
+.seg button[aria-pressed=true].a{background:var(--empty);color:var(--ink)}
+.btn{height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:.9rem}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.danger{color:var(--neg);border-color:var(--neg)}
+.btn.sm{height:34px;padding:0 12px;font-size:.82rem}
+
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.tile .v{font-family:var(--display);font-size:1.6rem;font-weight:700;line-height:1}
+.tile .v.p{color:var(--pos)} .tile .v.n{color:var(--neg)}
+.tile .s{font-size:.75rem;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.chart{width:100%;overflow-x:auto}
+.chart svg{display:block;width:100%;height:auto}
+.legend{display:flex;gap:14px;font-size:.78rem;color:var(--muted);flex-wrap:wrap}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;background:var(--c)}
+select{height:36px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:0 8px;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.86rem}
+th,td{text-align:left;padding:8px 6px;border-top:1px solid var(--line);white-space:nowrap}
+th{font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;border-top:0}
+td.r,th.r{text-align:right}
+td .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--c)}
+.tablewrap{overflow-x:auto}
+.bar{height:6px;border-radius:3px;background:var(--empty);width:64px;display:inline-block;vertical-align:middle;margin-left:6px;overflow:hidden}
+.bar b{display:block;height:100%;background:var(--c)}
+
+textarea{width:100%;min-height:140px;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px;font:12px/1.4 var(--mono)}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.manage .row{grid-template-columns:1fr auto}
+.manage input{width:100%;min-width:0;border:0;border-bottom:1px dashed var(--line);background:transparent;padding:4px 0;font-weight:500}
+.note{font-size:.84rem;color:var(--muted);margin:0}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.86rem}
+
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+nav.tabs .in{display:grid;grid-template-columns:repeat(3,1fr);width:100%;max-width:640px}
+nav.tabs button{border:0;background:transparent;height:60px;font-weight:600;font-size:.85rem;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+nav.tabs button[aria-selected=true]{color:var(--ink)}
+nav.tabs button[aria-selected=true] .g{color:var(--accent)}
+nav.tabs .g{font-family:var(--mono);font-size:1rem;letter-spacing:-.05em}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:.88rem;z-index:20;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><h1>Tally Ledger</h1><span class="tallymark" id="storeState">on this device</span></div>
+    <div class="datebar" id="datebar">
+      <button id="prevDay" aria-label="Previous day">‹</button>
+      <div class="d"><strong id="dayLabel">Today</strong><input type="date" id="dayPick" aria-label="Pick a date"></div>
+      <button id="nextDay" aria-label="Next day">›</button>
+    </div>
+  </header>
+  <div id="exampleBanner" class="banner" hidden>
+    <p><strong>These are example habits and 120 days of made-up history</strong> so you can see the charts. Clear them when you're ready to start your own.</p>
+    <button class="btn sm" id="clearExample">Start fresh</button>
+  </div>
+
+  <section class="view" id="v-today"></section>
+  <section class="view" id="v-insights" hidden></section>
+  <section class="view" id="v-data" hidden></section>
+</div>
+<nav class="tabs" role="tablist"><div class="in">
+  <button role="tab" data-tab="today" aria-selected="true"><span class="g">||||</span>Log</button>
+  <button role="tab" data-tab="insights" aria-selected="false"><span class="g">▁▃▆</span>Insights</button>
+  <button role="tab" data-tab="data" aria-selected="false"><span class="g">{ }</span>Data</button>
+</div></nav>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+"use strict";
+const KEY = "tally-ledger-v1";
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+// ---------- dates (local calendar days as YYYY-MM-DD) ----------
+const pad = n => String(n).padStart(2, "0");
+const keyOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseKey = k => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); };
+const addDays = (k, n) => { const d = parseKey(k); d.setDate(d.getDate() + n); return keyOf(d); };
+const todayKey = () => keyOf(new Date());
+const daysBetween = (a, b) => Math.round((parseKey(b) - parseKey(a)) / 864e5);
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fmtDay = k => { const d = parseKey(k); return `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`; };
+
+// ---------- storage ----------
+let state;
+let memoryOnly = false;
+function load() {
+  try { const raw = localStorage.getItem(KEY); if (raw) return JSON.parse(raw); } catch (e) { memoryOnly = true; }
+  return null;
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); memoryOnly = false; }
+  catch (e) { memoryOnly = true; }
+  $("#storeState").textContent = memoryOnly ? "not saving: storage blocked" : "saved on this device";
+}
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+
+function exampleState() {
+  const behaviors = [
+    ["Morning walk", "pos", .72], ["Read 20 pages", "pos", .55], ["Strength training", "pos", .38],
+    ["In bed by 11", "pos", .5], ["Late-night snacking", "neg", .3], ["Doomscrolling", "neg", .45], ["Skipped lunch", "neg", .18]
+  ].map(([name, pol, p], i) => ({ id: "ex" + i, name, polarity: pol, created: addDays(todayKey(), -119), archived: false, p }));
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const entries = [];
+  for (let i = 119; i >= 1; i--) {
+    const d = addDays(todayKey(), -i); const dow = parseKey(d).getDay(); const trend = (119 - i) / 119;
+    for (const b of behaviors) {
+      let p = b.p + (b.polarity === "pos" ? .15 : -.12) * trend;
+      if (dow === 0 || dow === 6) p += b.polarity === "neg" ? .15 : -.12;
+      if (rnd() < p) entries.push({ id: uid(), b: b.id, d, t: parseKey(d).toISOString() });
+    }
+  }
+  behaviors.forEach(b => delete b.p);
+  return { v: 1, example: true, behaviors, entries };
+}
+state = load() || exampleState();
+
+// ---------- derived data ----------
+let index; // "behaviorId|date" -> entry
+function reindex() { index = new Map(); for (const e of state.entries) index.set(e.b + "|" + e.d, e); }
+reindex();
+const has = (b, d) => index.has(b + "|" + d);
+const active = () => state.behaviors.filter(b => !b.archived);
+const byId = id => state.behaviors.find(b => b.id === id);
+
+function toggle(bId, d) {
+  const k = bId + "|" + d;
+  if (index.has(k)) { const e = index.get(k); state.entries = state.entries.filter(x => x !== e); }
+  else state.entries.push({ id: uid(), b: bId, d, t: new Date().toISOString() });
+  reindex(); save();
+}
+
+function streaks(b, upto) {
+  // positive: run of consecutive done days; negative: run of consecutive clean days
+  const days = state.entries.filter(e => e.b === b.id).map(e => e.d).sort();
+  const start = [b.created, days[0]].filter(Boolean).sort()[0] || upto;
+  let best = 0, run = 0;
+  for (let d = start; d <= upto; d = addDays(d, 1)) {
+    const hit = has(b.id, d) === (b.polarity === "pos");
+    run = hit ? run + 1 : 0; if (run > best) best = run;
+  }
+  let cur = 0, d = upto;
+  if (b.polarity === "pos" && !has(b.id, d)) d = addDays(d, -1); // today not logged yet doesn't break it
+  while (d >= start && has(b.id, d) === (b.polarity === "pos")) { cur++; d = addDays(d, -1); }
+  return { cur, best };
+}
+
+// ---------- UI state ----------
+let day = todayKey();
+let tab = "today";
+let newPol = "pos";
+let range = 30;
+let focusB = null;
+let pendingConfirm = null;
+try { const ui = JSON.parse(sessionStorage.getItem(KEY + "-ui") || "{}"); if (ui.tab) tab = ui.tab; if (ui.range) range = ui.range; } catch (e) {}
+const saveUi = () => { try { sessionStorage.setItem(KEY + "-ui", JSON.stringify({ tab, range })); } catch (e) {} };
+
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2200); }
+
+// ---------- Log view ----------
+function renderToday() {
+  const t = todayKey();
+  $("#dayLabel").textContent = day === t ? "Today" : day === addDays(t, -1) ? "Yesterday" : fmtDay(day);
+  $("#dayPick").value = day; $("#dayPick").max = t;
+  $("#nextDay").disabled = day >= t;
+  const list = active();
+  const pos = list.filter(b => b.polarity === "pos"), neg = list.filter(b => b.polarity === "neg");
+  const posDone = pos.filter(b => has(b.id, day)).length, negDone = neg.filter(b => has(b.id, day)).length;
+  const strip = b => { let s = ""; for (let i = 13; i >= 0; i--) { const d = addDays(day, -i); s += `<i class="${has(b.id, d) ? "on " : ""}${b.polarity[0]}${i === 0 ? " cur" : ""}" title="${fmtDay(d)}"></i>`; } return s; };
+  const rows = (arr, onTxt, offTxt) => arr.length ? arr.map(b => {
+    const on = has(b.id, day), st = streaks(b, day);
+    const meta = b.polarity === "pos" ? (st.cur ? `${st.cur}-day streak` : "") : `${st.cur} clean day${st.cur === 1 ? "" : "s"}`;
+    return `<div class="row"><div style="min-width:0"><div class="name">${esc(b.name)}</div>
+      <div class="strip" aria-hidden="true">${strip(b)}</div>${meta ? `<div class="muted" style="font-size:.78rem;margin-top:4px">${meta}</div>` : ""}</div>
+      <button class="tog ${b.polarity[0]}${on ? " on" : ""}" data-toggle="${b.id}" aria-pressed="${on}">${on ? "✓ " + onTxt : offTxt}</button></div>`;
+  }).join("") : `<div class="empty">Nothing here yet. Add one below.</div>`;
+  $("#v-today").innerHTML = `
+    <div class="daysum"><span class="chip p">+${posDone} of ${pos.length} done</span><span class="chip ${negDone ? "n" : "x"}">${negDone ? "−" + negDone + " slipped" : "no slips"}</span></div>
+    <div class="group"><div class="group-head"><h2>Build</h2><span class="label">positive</span></div><div class="rows">${rows(pos, "Done", "Did it")}</div></div>
+    <div class="group"><div class="group-head"><h2>Avoid</h2><span class="label">negative</span></div><div class="rows">${rows(neg, "Slipped", "Slipped?")}</div></div>
+    <div class="group"><h3>Add a behavior</h3>
+      <form class="add" id="addForm"><input type="text" id="newName" placeholder="e.g. Meditate 10 min" maxlength="60" required>
+        <div class="seg" role="group" aria-label="Type"><button type="button" class="p" data-pol="pos" aria-pressed="${newPol === "pos"}">Positive</button><button type="button" class="n" data-pol="neg" aria-pressed="${newPol === "neg"}">Negative</button></div>
+        <button class="btn primary" type="submit">Add</button></form></div>`;
+}
+
+// ---------- Insights view ----------
+function svgEl(w, h, inner, label) { return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(label)}">${inner}</svg>`; }
+
+function netChart(days) {
+  const pos = active().filter(b => b.polarity === "pos"), neg = active().filter(b => b.polarity === "neg");
+  const W = 360, H = 170, L = 26, R = 4, T = 10, B = 22;
+  const maxP = Math.max(1, pos.length), maxN = Math.max(1, neg.length);
+  const mid = T + (H - T - B) * maxP / (maxP + maxN), unit = (H - T - B) / (maxP + maxN);
+  const bw = (W - L - R) / days.length;
+  let g = `<line x1="${L}" x2="${W - R}" y1="${mid}" y2="${mid}" stroke="var(--line)"/>`;
+  for (const [v, y] of [[maxP, mid - maxP * unit], [maxN, mid + maxN * unit]]) g += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-dasharray="2 3"/>`;
+  g += `<text x="${L - 6}" y="${mid - maxP * unit + 4}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="var(--mono)">+${maxP}</text>`;
+  g += `<text x="${L - 6}" y="${mid + 4}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="var(--mono)">0</text>`;
+  g += `<text x="${L - 6}" y="${mid + maxN * unit + 4}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="var(--mono)">−${maxN}</text>`;
+  days.forEach((d, i) => {
+    const p = pos.filter(b => has(b.id, d)).length, n = neg.filter(b => has(b.id, d)).length, x = L + i * bw + bw * .15, w = Math.max(1, bw * .7);
+    if (p) g += `<rect x="${x}" y="${mid - p * unit}" width="${w}" height="${p * unit}" fill="var(--pos)" rx="${Math.min(2, w / 3)}"><title>${fmtDay(d)}: +${p}</title></rect>`;
+    if (n) g += `<rect x="${x}" y="${mid}" width="${w}" height="${n * unit}" fill="var(--neg)" rx="${Math.min(2, w / 3)}"><title>${fmtDay(d)}: −${n}</title></rect>`;
+  });
+  const step = days.length <= 31 ? 7 : days.length <= 92 ? 14 : 60;
+  for (let i = days.length - 1; i >= 0; i -= step) { const d = parseKey(days[i]); g += `<text x="${L + i * bw + bw / 2}" y="${H - 6}" text-anchor="middle" font-size="10" fill="var(--muted)" font-family="var(--mono)">${d.getDate()} ${MON[d.getMonth()]}</text>`; }
+  return svgEl(W, H, g, "Positive behaviors done above the line and negative slips below, per day");
+}
+
+function calendar(b, weeks) {
+  const end = todayKey(), endD = parseKey(end);
+  const first = addDays(end, -((weeks - 1) * 7 + endD.getDay()));
+  const cs = 13, gap = 3, L = 26, T = 16, W = L + weeks * (cs + gap), H = T + 7 * (cs + gap);
+  let g = "", lastM = -1;
+  for (let w = 0; w < weeks; w++) for (let r = 0; r < 7; r++) {
+    const d = addDays(first, w * 7 + r); if (d > end) continue;
+    const dt = parseKey(d);
+    if (r === 0 && dt.getMonth() !== lastM && dt.getDate() <= 7) { lastM = dt.getMonth(); g += `<text x="${L + w * (cs + gap)}" y="10" font-size="9" fill="var(--muted)" font-family="var(--mono)">${MON[lastM]}</text>`; }
+    const on = has(b.id, d), before = d < b.created;
+    const fill = on ? (b.polarity === "pos" ? "var(--pos)" : "var(--neg)") : before ? "transparent" : "var(--empty)";
+    g += `<rect x="${L + w * (cs + gap)}" y="${T + r * (cs + gap)}" width="${cs}" height="${cs}" rx="2.5" fill="${fill}"${before && !on ? ` stroke="var(--line)"` : ""}><title>${fmtDay(d)}${on ? (b.polarity === "pos" ? ": done" : ": slipped") : ""}</title></rect>`;
+  }
+  ["M", "W", "F"].forEach((t, i) => g += `<text x="0" y="${T + (1 + i * 2) * (cs + gap) + 10}" font-size="9" fill="var(--muted)" font-family="var(--mono)">${t}</text>`);
+  return `<svg viewBox="0 0 ${W} ${H}" style="min-width:${Math.min(W, 560)}px" role="img" aria-label="Calendar of ${esc(b.name)}">${g}</svg>`;
+}
+
+function weekdayChart(b, days) {
+  const tot = Array(7).fill(0), hit = Array(7).fill(0);
+  days.forEach(d => { if (d < b.created) return; const w = parseKey(d).getDay(); tot[w]++; if (has(b.id, d)) hit[w]++; });
+  const order = [1, 2, 3, 4, 5, 6, 0], W = 360, H = 140, T = 18, B = 22, bw = W / 7;
+  let g = "";
+  order.forEach((w, i) => {
+    const r = tot[w] ? hit[w] / tot[w] : 0, h = (H - T - B) * r, x = i * bw + bw * .2;
+    g += `<rect x="${x}" y="${T}" width="${bw * .6}" height="${H - T - B}" rx="4" fill="var(--empty)"/>`;
+    g += `<rect x="${x}" y="${H - B - h}" width="${bw * .6}" height="${h}" rx="4" fill="${b.polarity === "pos" ? "var(--pos)" : "var(--neg)"}"><title>${DOW[w]}: ${hit[w]} of ${tot[w]}</title></rect>`;
+    g += `<text x="${x + bw * .3}" y="${T - 5}" text-anchor="middle" font-size="11" fill="var(--ink)" font-family="var(--mono)">${Math.round(r * 100)}%</text>`;
+    g += `<text x="${x + bw * .3}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="var(--body)">${DOW[w]}</text>`;
+  });
+  return svgEl(W, H, g, `Share of days by weekday for ${b.name}`);
+}
+
+function renderInsights() {
+  const t = todayKey(), days = []; for (let i = range - 1; i >= 0; i--) days.push(addDays(t, -i));
+  const list = active(), pos = list.filter(b => b.polarity === "pos"), neg = list.filter(b => b.polarity === "neg");
+  if (!list.length) { $("#v-insights").innerHTML = `<div class="card"><h2>No behaviors yet</h2><p class="note">Add a behavior on the Log tab and your charts will appear here.</p></div>`; return; }
+  const eligible = (b, d) => d >= b.created;
+  let pHit = 0, pTot = 0, cleanDays = 0, net = 0;
+  days.forEach(d => {
+    pos.forEach(b => { if (eligible(b, d)) { pTot++; if (has(b.id, d)) pHit++; } });
+    const slips = neg.filter(b => has(b.id, d)).length; if (!slips) cleanDays++;
+    net += pos.filter(b => has(b.id, d)).length - slips;
+  });
+  if (!focusB || !byId(focusB) || byId(focusB).archived) focusB = list[0].id;
+  const fb = byId(focusB);
+  const rowsHtml = list.map(b => {
+    const elig = days.filter(d => eligible(b, d)), n = elig.filter(d => has(b.id, d)).length;
+    const prev = []; for (let i = 2 * range - 1; i >= range; i--) prev.push(addDays(t, -i));
+    const pe = prev.filter(d => eligible(b, d)), pn = pe.filter(d => has(b.id, d)).length;
+    const rate = elig.length ? n / elig.length : 0, prate = pe.length ? pn / pe.length : null;
+    const delta = prate === null ? "" : Math.round((rate - prate) * 100);
+    const good = delta === "" ? "" : (b.polarity === "pos" ? delta > 0 : delta < 0) ? "var(--pos)" : delta === 0 ? "var(--muted)" : "var(--neg)";
+    const st = streaks(b, t), c = b.polarity === "pos" ? "var(--pos)" : "var(--neg)";
+    return `<tr><td style="--c:${c}"><span class="dot"></span>${esc(b.name)}</td>
+      <td class="r num" style="--c:${c}">${Math.round(rate * 100)}%<span class="bar"><b style="width:${rate * 100}%"></b></span></td>
+      <td class="r num" style="color:${good}">${delta === "" ? "–" : (delta > 0 ? "+" : "") + delta}</td>
+      <td class="r num">${st.cur}</td><td class="r num">${st.best}</td></tr>`;
+  }).join("");
+  $("#v-insights").innerHTML = `
+    <div class="card-head"><h2>Last ${range} days</h2>
+      <div class="seg" role="group" aria-label="Range">${[7, 30, 90, 365].map(r => `<button type="button" class="a" data-range="${r}" aria-pressed="${r === range}">${r === 365 ? "1y" : r + "d"}</button>`).join("")}</div></div>
+    <div class="tiles">
+      <div class="tile"><span class="label">Positive</span><span class="v p num">${pTot ? Math.round(pHit / pTot * 100) : 0}%</span><span class="s">${pHit} of ${pTot} done</span></div>
+      <div class="tile"><span class="label">Clean days</span><span class="v n num">${cleanDays}</span><span class="s">of ${range} with no slips</span></div>
+      <div class="tile"><span class="label">Net / day</span><span class="v num">${(net / range >= 0 ? "+" : "") + (net / range).toFixed(1)}</span><span class="s">positives − slips</span></div>
+    </div>
+    <div class="card"><div class="card-head"><h3>Daily balance</h3><div class="legend"><span style="--c:var(--pos)">done</span><span style="--c:var(--neg)">slipped</span></div></div>
+      <div class="chart">${netChart(days)}</div></div>
+    <div class="card"><div class="card-head"><h3>Every behavior</h3><span class="label">vs previous ${range}d</span></div>
+      <div class="tablewrap"><table><thead><tr><th>Behavior</th><th class="r">Rate</th><th class="r">Δ pts</th><th class="r">Streak</th><th class="r">Best</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
+      <p class="note">Rate is the share of days you did it. For negative behaviors lower is better, and the streak counts clean days.</p></div>
+    <div class="card"><div class="card-head"><h3>One behavior up close</h3>
+      <select id="focusSel" aria-label="Behavior">${list.map(b => `<option value="${b.id}"${b.id === focusB ? " selected" : ""}>${esc(b.name)}</option>`).join("")}</select></div>
+      <span class="label">Last 26 weeks</span><div class="chart">${calendar(fb, 26)}</div>
+      <span class="label">By weekday, last ${Math.max(range, 28)} days</span><div class="chart">${weekdayChart(fb, range >= 28 ? days : Array.from({ length: 28 }, (_, i) => addDays(t, i - 27)))}</div></div>`;
+}
+
+// ---------- Data view ----------
+const CSV_HEAD = ["date", "behavior", "polarity", "value", "logged_at", "behavior_id"];
+const csvCell = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+function toCSV() {
+  const rows = [...state.entries].sort((a, b) => a.d.localeCompare(b.d) || a.b.localeCompare(b.b)).map(e => {
+    const b = byId(e.b) || { name: "?", polarity: "" }; return [e.d, b.name, b.polarity === "pos" ? "positive" : "negative", 1, e.t, e.b].map(csvCell).join(",");
+  });
+  return [CSV_HEAD.join(","), ...rows].join("\n");
+}
+function toJSON() { return JSON.stringify({ app: "tally-ledger", version: 1, exported_at: new Date().toISOString(), behaviors: state.behaviors, entries: state.entries }, null, 2); }
+function parseCSV(text) {
+  const rows = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+    else if (c === '"') q = true; else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim()));
+}
+function importText(text) {
+  text = text.trim(); if (!text) throw new Error("There's nothing to import. Paste a CSV or JSON export, or choose a file.");
+  let added = 0, newB = 0;
+  const findOrMake = (name, pol, id) => {
+    let b = (id && byId(id)) || state.behaviors.find(x => x.name.toLowerCase() === name.toLowerCase());
+    if (!b) { b = { id: id && !byId(id) ? id : uid(), name, polarity: pol, created: todayKey(), archived: false }; state.behaviors.push(b); newB++; }
+    return b;
+  };
+  const add = (b, d, t) => { if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || has(b.id, d)) return; state.entries.push({ id: uid(), b: b.id, d, t: t || parseKey(d).toISOString() }); index.set(b.id + "|" + d, true); if (d < b.created) b.created = d; added++; };
+  if (text[0] === "{") {
+    const j = JSON.parse(text); if (!Array.isArray(j.behaviors) || !Array.isArray(j.entries)) throw new Error("This JSON isn't a Tally Ledger backup: it needs behaviors and entries lists.");
+    const map = {};
+    for (const b of j.behaviors) map[b.id] = Object.assign(findOrMake(String(b.name), b.polarity === "neg" ? "neg" : "pos", b.id), b.archived ? { archived: true } : {});
+    for (const e of j.entries) if (map[e.b]) add(map[e.b], e.d, e.t);
+  } else {
+    const rows = parseCSV(text), head = rows.shift().map(h => h.trim().toLowerCase());
+    const col = n => head.indexOf(n);
+    if (col("date") < 0 || col("behavior") < 0) throw new Error("The CSV needs at least a date and a behavior column. The first row must be the header.");
+    for (const r of rows) {
+      const val = col("value") >= 0 ? Number(r[col("value")]) : 1; if (!val) continue;
+      const pol = col("polarity") >= 0 && /^n/i.test(r[col("polarity")] || "") ? "neg" : "pos";
+      add(findOrMake(r[col("behavior")].trim(), pol, col("behavior_id") >= 0 ? r[col("behavior_id")] : null), (r[col("date")] || "").trim(), col("logged_at") >= 0 ? r[col("logged_at")] : null);
+    }
+  }
+  state.example = false; reindex(); save();
+  return `Imported ${added} entr${added === 1 ? "y" : "ies"}${newB ? ` and ${newB} new behavior${newB === 1 ? "" : "s"}` : ""}. Days already logged were skipped.`;
+}
+
+let exportKind = null;
+function renderData() {
+  const all = state.behaviors;
+  const first = state.entries.reduce((m, e) => e.d < m ? e.d : m, "9999");
+  $("#v-data").innerHTML = `
+    <div class="card"><h2>Your raw data</h2>
+      <p class="note">${state.entries.length} entries across ${all.length} behaviors${state.entries.length ? `, from ${fmtDay(first)}` : ""}. Everything lives on this device, nothing is sent anywhere.</p>
+      <div class="btns"><button class="btn" data-export="csv">Export CSV</button><button class="btn" data-export="json">Export JSON backup</button></div>
+      ${exportKind ? `<textarea id="exportBox" readonly aria-label="Export">${esc(exportKind === "csv" ? toCSV() : toJSON())}</textarea>
+      <div class="btns"><button class="btn sm primary" id="copyExport">Copy</button><button class="btn sm" id="dlExport">Download file</button></div>
+      <p class="note">One row per day a behavior happened. If Download doesn't respond, use Copy and paste into Notes, a spreadsheet or a file.</p>` : ""}
+    </div>
+    <div class="card"><h2>Import</h2>
+      <p class="note">Accepts this app's CSV or JSON, or any CSV with <span class="mono">date</span> (YYYY-MM-DD) and <span class="mono">behavior</span> columns, plus optional <span class="mono">polarity</span> and <span class="mono">value</span>. Entries are merged; nothing is overwritten.</p>
+      <input type="file" id="importFile" accept=".csv,.json,text/csv,application/json" aria-label="Choose a file">
+      <textarea id="importBox" placeholder="…or paste CSV / JSON here" aria-label="Paste data"></textarea>
+      <div class="btns"><button class="btn primary" id="importBtn">Import pasted data</button></div></div>
+    <div class="card manage"><h2>Behaviors</h2>
+      <div class="rows">${all.map(b => `<div class="row"><div style="min-width:0">
+          <input value="${esc(b.name)}" data-rename="${b.id}" aria-label="Name">
+          <div class="muted" style="font-size:.78rem;margin-top:4px">${b.polarity === "pos" ? "Positive" : "Negative"} · ${state.entries.filter(e => e.b === b.id).length} entries${b.archived ? " · archived" : ""}</div></div>
+          <div class="btns">${pendingConfirm === "del:" + b.id
+            ? `<button class="btn sm danger" data-del-yes="${b.id}">Delete with entries</button><button class="btn sm" data-cancel>Keep</button>`
+            : `<button class="btn sm" data-flip="${b.id}" title="Switch positive/negative">${b.polarity === "pos" ? "+" : "−"}</button><button class="btn sm" data-arch="${b.id}">${b.archived ? "Restore" : "Archive"}</button><button class="btn sm danger" data-del="${b.id}" aria-label="Delete">✕</button>`}</div></div>`).join("") || `<div class="empty">No behaviors yet.</div>`}</div>
+      <p class="note">Archiving hides a behavior from the Log and charts but keeps its history.</p></div>
+    <div class="card"><h2>Erase everything</h2>
+      ${pendingConfirm === "wipe" ? `<div class="confirm">Delete all ${state.entries.length} entries and ${all.length} behaviors from this device? <button class="btn sm danger" id="wipeYes">Erase</button><button class="btn sm" data-cancel>Cancel</button></div>`
+        : `<p class="note">Export a backup first. This can't be undone.</p><div><button class="btn danger" id="wipe">Erase all data</button></div>`}</div>`;
+}
+
+function download(name, text, type) {
+  try { const url = URL.createObjectURL(new Blob([text], { type })); const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); } catch (e) { toast("Download isn't available here. Use Copy instead."); }
+}
+
+// ---------- render + events ----------
+function render() {
+  document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === tab));
+  ["today", "insights", "data"].forEach(v => $("#v-" + v).hidden = v !== tab);
+  $("#datebar").hidden = tab !== "today";
+  $("#exampleBanner").hidden = !state.example;
+  if (tab === "today") renderToday(); else if (tab === "insights") renderInsights(); else renderData();
+}
+
+document.addEventListener("click", async ev => {
+  const el = ev.target.closest("button"); if (!el) return;
+  const ds = el.dataset;
+  if (ds.tab) { tab = ds.tab; pendingConfirm = null; saveUi(); render(); scrollTo(0, 0); return; }
+  if (ds.toggle) { toggle(ds.toggle, day); render(); return; }
+  if (ds.pol) { newPol = ds.pol; document.querySelectorAll("[data-pol]").forEach(b => b.setAttribute("aria-pressed", b.dataset.pol === newPol)); return; }
+  if (ds.range) { range = +ds.range; saveUi(); render(); return; }
+  if (ds.export) { exportKind = exportKind === ds.export ? null : ds.export; render(); return; }
+  if (ds.flip) { const b = byId(ds.flip); b.polarity = b.polarity === "pos" ? "neg" : "pos"; save(); render(); return; }
+  if (ds.arch) { const b = byId(ds.arch); b.archived = !b.archived; save(); render(); return; }
+  if (ds.del) { pendingConfirm = "del:" + ds.del; render(); return; }
+  if (ds.delYes) { state.behaviors = state.behaviors.filter(b => b.id !== ds.delYes); state.entries = state.entries.filter(e => e.b !== ds.delYes); pendingConfirm = null; reindex(); save(); render(); toast("Deleted"); return; }
+  if ("cancel" in ds) { pendingConfirm = null; render(); return; }
+  switch (el.id) {
+    case "prevDay": day = addDays(day, -1); render(); break;
+    case "nextDay": if (day < todayKey()) { day = addDays(day, 1); render(); } break;
+    case "clearExample": state = { v: 1, example: false, behaviors: [], entries: [] }; reindex(); save(); render(); toast("Cleared. Add your first behavior below."); break;
+    case "copyExport": { const box = $("#exportBox"); try { await navigator.clipboard.writeText(box.value); toast("Copied"); } catch (e) { box.focus(); box.select(); toast("Selected. Use your device's Copy."); } break; }
+    case "dlExport": { const stamp = todayKey(); exportKind === "csv" ? download(`tally-${stamp}.csv`, toCSV(), "text/csv") : download(`tally-backup-${stamp}.json`, toJSON(), "application/json"); break; }
+    case "importBtn": try { toast(importText($("#importBox").value)); render(); } catch (e) { toast(e.message.startsWith("Unexpected") ? "That JSON couldn't be read. Check it's a complete export." : e.message); } break;
+    case "wipe": pendingConfirm = "wipe"; render(); break;
+    case "wipeYes": state = { v: 1, example: false, behaviors: [], entries: [] }; pendingConfirm = null; reindex(); save(); render(); toast("All data erased"); break;
+  }
+});
+document.addEventListener("submit", ev => {
+  if (ev.target.id !== "addForm") return; ev.preventDefault();
+  const name = $("#newName").value.trim(); if (!name) return;
+  if (state.example) { state = { v: 1, example: false, behaviors: [], entries: [] }; reindex(); toast("Example data cleared"); }
+  state.behaviors.push({ id: uid(), name, polarity: newPol, created: todayKey(), archived: false }); save(); render();
+});
+document.addEventListener("change", ev => {
+  const el = ev.target;
+  if (el.id === "dayPick" && el.value) { day = el.value > todayKey() ? todayKey() : el.value; render(); }
+  else if (el.id === "focusSel") { focusB = el.value; render(); }
+  else if (el.dataset.rename) { const b = byId(el.dataset.rename), v = el.value.trim(); if (v) { b.name = v; save(); toast("Renamed"); } else el.value = b.name; }
+  else if (el.id === "importFile" && el.files[0]) { const r = new FileReader(); r.onload = () => { try { toast(importText(String(r.result))); render(); } catch (e) { toast(e.message); } }; r.readAsText(el.files[0]); }
+});
+// roll over to the new day if the app stays open past midnight
+let lastToday = todayKey();
+document.addEventListener("visibilitychange", () => { if (!document.hidden && todayKey() !== lastToday) { if (day === lastToday) day = todayKey(); lastToday = todayKey(); render(); } });
+
+save(); render();
+})();
+</script>
+
+<script>
+if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+</script>
+</body>
+</html>
